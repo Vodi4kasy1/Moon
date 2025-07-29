@@ -275,14 +275,14 @@ function LibraryV2.UI(Name)
     if not _Data then
         ELib_Data = {
             Last_Visit = os.date("%x", os.time()),
-            Config_Name = "cf_l.elib",
+            Config_Name = "Heny",
         }
 
         SaveData()
     end
 
     TopMenu.last.Text = "last visit: "..ELib_Data.Last_Visit
-    TopMenu.cf.Text = "cf name: "..ELib_Data.Config_Name
+    TopMenu.cf.Text = "Creator: "..ELib_Data.Config_Name
     TopMenu.holder.TextLabel.Text = "welcome, "..game:GetService("Players").LocalPlayer.Name
 
     ELib_Data.Last_Visit = os.date("%x", os.time())
@@ -434,9 +434,9 @@ function LibraryV2.UI(Name)
 
     end)
 
-    Widgets.Discord.TextButton.MouseButton1Click:Connect(function()
-        setclipboard("Xenon Server: https://discord.gg/DXrGhrxZ9v")
-    end)
+    --Widgets.Discord.TextButton.MouseButton1Click:Connect(function()
+    --    setclipboard("Telegram: https://t.me/henyscripts")
+    --end)
 
     game:GetService("UserInputService").InputBegan:Connect(function(Key, IsTyping)
         if IsTyping then
