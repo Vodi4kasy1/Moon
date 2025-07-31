@@ -6952,6 +6952,7 @@ local function EnableKillDio()
     local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
     local RemoteEvent = Character:FindFirstChild("RemoteEvent")
     local RemoteFunction = Character:FindFirstChild("RemoteFunction")
+    local Camera = workspace.CurrentCamera
 
     local part = Instance.new("Part")
     part.Parent = workspace
@@ -6961,7 +6962,7 @@ local function EnableKillDio()
     part.Transparency = 1
 
     task.spawn(function()
-        if not PlayerGui:FindFirstChild("HUD") then
+        if not PlayerGui:FindFirstChild("HUD") then
             local HUD = game.ReplicatedStorage.Objects.HUD:Clone()
             HUD.Parent = PlayerGui
         end
@@ -7008,7 +7009,7 @@ local function EnableKillDio()
         end
     end
 
-    local function killNPC(Name, Pos, DontDestroy)
+    local function killNPC(Name, Pos)
         local NPC = workspace.Living:WaitForChild(Name, 30)
         local beingTargeted = true
         local deadCheck
@@ -7020,25 +7021,26 @@ local function EnableKillDio()
         
         local function setStandMorphPosition()
             pcall(function()
-                if not Character:FindFirstChild("SummonedStand") or not Character:FindFirstChild("SummonedStand").Value then
+                if not Character:FindFirstChild("SummonedStand") or not Character:FindFirstChild("StandMorph") then
                     RemoteFunction:InvokeServer("ToggleStand", "Toggle")
                     task.wait(0.5)
                     return
                 end
         
-                Character.StandMorph.HumanoidRootPart.StandAttach.AlignPosition.MaxForce = 9e9
-                Character.StandMorph.PrimaryPart.CFrame = NPC.HumanoidRootPart.CFrame + NPC.HumanoidRootPart.CFrame.lookVector * -1.1
-                Character.HumanoidRootPart.CFrame = Character.StandMorph.PrimaryPart.CFrame + Character.StandMorph.PrimaryPart.CFrame.lookVector - Vector3.new(0, Pos, 0)
+                local StandMorph = Character.StandMorph
+                local StandHumanoidRootPart = StandMorph:WaitForChild("HumanoidRootPart")
+                local StandAttach = StandHumanoidRootPart:WaitForChild("StandAttach")
+                StandAttach.AlignPosition.MaxForce = 9e9
+                StandMorph.PrimaryPart.CFrame = NPC.HumanoidRootPart.CFrame + NPC.HumanoidRootPart.CFrame.lookVector * -1.1
+                Character.HumanoidRootPart.CFrame = StandMorph.PrimaryPart.CFrame + StandMorph.PrimaryPart.CFrame.lookVector - Vector3.new(0, Pos, 0)
 
                 if not Character:FindFirstChild("FocusCam") then
                     local FocusCam = Instance.new("ObjectValue", Character)
                     FocusCam.Name = "FocusCam"
-                    FocusCam.Value = Character.StandMorph.PrimaryPart
+                    FocusCam.Value = StandMorph.PrimaryPart
                 end
-        
-                if Character:FindFirstChild("FocusCam") and Character.FocusCam.Value ~= Character.StandMorph.PrimaryPart then
-                    Character.FocusCam.Value = Character.StandMorph.PrimaryPart
-                end
+                
+                Camera.CameraSubject = StandMorph:FindFirstChildOfClass("Humanoid")
             end)
         end
     
@@ -7054,15 +7056,15 @@ local function EnableKillDio()
         end
     
         local function AutoM1()
-            if not NPC or NPC.Parent == nil then return end
+            if not NPC or NPC.Parent == nil or not NPC:FindFirstChild("Humanoid") then return end
             if NPC.Humanoid.Health <= 1 then
                 task.spawn(function()
-                    task.wait(5)
-                    if NPC then
+                    task.wait(2)
+                    if NPC and NPC.Parent then
                         RemoteFunction:InvokeServer("Attack", "m1")
                     end
                 end)
-            elseif NPC.Humanoid.Health >= 1 then
+            else
                 RemoteFunction:InvokeServer("Attack", "m1")
             end
         end
@@ -7072,21 +7074,25 @@ local function EnableKillDio()
             if number and NPC then
                 deadCheck:Disconnect()
                 beingTargeted = false
-                if not DontDestroy then
-                    NPC:Destroy()
-                end
+                NPC:Destroy()
                 takeQuest()
+                Character.HumanoidRootPart.CFrame = CFrame.new(8974.03418, -313.496246, 7962.94824, -0.00684349379, -3.8294349e-08, 0.999976575, -4.46711867e-09, 1, 3.82646732e-08, -0.999976575, -4.20515001e-09, -0.00684349379)
+                if Character:FindFirstChild("FocusCam") then Character.FocusCam:Destroy() end
+                Camera.CameraSubject = Character:FindFirstChildOfClass("Humanoid")
+                KillDioEnabled = false
+                notify('KillDioOH', 'KillDioOH has been executed!')
             end
         end)
     
         while beingTargeted do
-            task.wait()
-            if not NPC or not NPC:FindFirstChild("HumanoidRootPart") then
+            task.wait(0.1)
+            if not NPC or not NPC:FindFirstChild("HumanoidRootPart") or not NPC.Parent then
                 deadCheck:Disconnect()
                 Character.HumanoidRootPart.CFrame = CFrame.new(8974.03418, -313.496246, 7962.94824, -0.00684349379, -3.8294349e-08, 0.999976575, -4.46711867e-09, 1, 3.82646732e-08, -0.999976575, -4.20515001e-09, -0.00684349379)
                 if Character:FindFirstChild("FocusCam") then Character.FocusCam:Destroy() end
+                Camera.CameraSubject = Character:FindFirstChildOfClass("Humanoid")
                 KillDioEnabled = false
-                notify('KillDioOH', 'KillDioOH has been executed!')
+                notify('KillDioOH', 'NPC not found or dead!')
                 return true
             end
     
@@ -7111,7 +7117,7 @@ local function EnableKillDio()
     end
 
     if Quest then
-        killNPC("Heaven Ascension Dio", 35, false)
+        killNPC("Heaven Ascension Dio", 35)
     else
         KillDioEnabled = false
         notify('KillDioOH', 'Dio quest not found!')
@@ -13688,6 +13694,4 @@ task.spawn(function()
 end)
 
             --\\ MoonLight //--
-          -- | Thx for using | --
-	 --\\ t.me/henyscripts //--
---1
+			--2
