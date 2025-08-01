@@ -4834,6 +4834,13 @@ CMDs[#CMDs + 1] = {NAME = 'luckynotify', DESC = 'Нотификатор для �
 CMDs[#CMDs + 1] = {NAME = 'unluckynotify', DESC = 'Выключает/удаляет нотификатор'}
 CMDs[#CMDs + 1] = {NAME = 'itemsnotify', DESC = 'Нотификатор для спавна предметов'}
 CMDs[#CMDs + 1] = {NAME = 'unitemsnotify', DESC = 'Выключает/удаляет нотификатор'}
+CMDs[#CMDs + 1] = {NAME = 'luckybuy', DESC = 'Покупает Lucky Arrow'}
+CMDs[#CMDs + 1] = {NAME = 'unluckybuy', DESC = 'Не Покупает Lucky arrow'}
+CMDs[#CMDs + 1] = {NAME = 'itemsell', DESC = 'Продаёт предметы все'}
+CMDs[#CMDs + 1] = {NAME = 'unitemsell', DESC = 'Выключает продажу всех предметов'}
+CMDs[#CMDs + 1] = {NAME = 'sellitem', DESC = 'Продаёт Предмет В Руке'}
+CMDs[#CMDs + 1] = {NAME = 'invisible', DESC = 'Делает вас гамосеком'}
+CMDs[#CMDs + 1] = {NAME = 'uninvisible', DESC = 'Делает вас гамосеком в2 но убирает invisible'}
 wait()
 
 for i = 1, #CMDs do
@@ -6508,7 +6515,7 @@ addcmd('telegram', {'tg', 'link'}, function(args, speaker)
 	end
 end)
 
-local OldNamecallTP;
+local OldNamecallTP
 OldNamecallTP = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local Arguments = {...}
     local Method = getnamecallmethod()
@@ -6545,11 +6552,7 @@ local function EnableAntiTimeStop()
         if TimestopOwner == LocalPlayer or LocalPlayer:DistanceFromCharacter(TimeStopOwnerRoot.Position) > 200 then return end
         
         HumanoidRootPart.CFrame = CFrame.new(0, 10000, 0)
-        
-        while TimeStopping.Parent and AntiTimeStopEnabled do
-            task.wait()
-        end
-        
+        task.wait(1)
         if AntiTimeStopEnabled and Character and HumanoidRootPart.Parent then
             HumanoidRootPart.CFrame = OldCFrame
         end
@@ -7390,6 +7393,576 @@ end)
 
 addcmd('unitemsnotify', {'unitemsnotify'}, function(args, speaker)
     DisableItemsNotify()
+end)
+
+local InvisibleEnabled = false
+local InvisibleConnection = nil
+local Highlight = nil
+local UndergroundAnimation = nil
+
+local function PlayAnimation(HumanoidCharacter, AnimationID, AnimationSpeed, Time)
+    local CreatedAnimation = Instance.new("Animation")
+    CreatedAnimation.AnimationId = AnimationID
+    local animationTrack = HumanoidCharacter:FindFirstChildOfClass("Humanoid"):FindFirstChildOfClass("Animator"):LoadAnimation(CreatedAnimation)
+    animationTrack:Play()
+    animationTrack:AdjustSpeed(AnimationSpeed)
+    animationTrack.Priority = Enum.AnimationPriority.Action4
+    animationTrack.TimePosition = Time
+    return animationTrack
+end
+
+local function Invisibile()
+    local LocalPlayer = game:GetService("Players").LocalPlayer
+    local Character = LocalPlayer.Character
+    if not Character then return end
+    local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local HUD = PlayerGui:FindFirstChild("HUD")
+    
+    if HUD then
+        HUD.Parent = nil
+    end
+
+    UndergroundAnimation = PlayAnimation(Character, "rbxassetid://7189062263", 0, 5)
+    LocalPlayer.Character = nil
+    UndergroundAnimation:Stop()
+    LocalPlayer.Character = Character
+
+    if HUD then
+        HUD.Parent = PlayerGui
+    end
+
+    Highlight = Instance.new("Highlight")
+    Highlight.Parent = Character
+    Highlight.Enabled = true
+end
+
+local function Uninvisible()
+    if UndergroundAnimation then
+        UndergroundAnimation:Stop()
+        UndergroundAnimation = nil
+    end
+    if Highlight then
+        Highlight:Destroy()
+        Highlight = nil
+    end
+end
+
+local function EnableInvisible()
+    if InvisibleEnabled then return end
+    InvisibleEnabled = true
+
+    local LocalPlayer = game:GetService("Players").LocalPlayer
+    Invisibile()
+
+    InvisibleConnection = LocalPlayer.CharacterAdded:Connect(function()
+        if InvisibleEnabled then
+            task.wait(0.5)
+            Invisibile()
+        end
+    end)
+
+    local TPBypass
+    TPBypass = hookfunction(getrawmetatable(game).__namecall, newcclosure(function(self, ...)
+        local args = {...}
+        if self.Name == "Returner" and args[1] == "idklolbrah2de" then
+            return "  ___XP DE KEY"
+        end
+        return TPBypass(self, ...)
+    end))
+
+    notify('Invisible', 'Invisible has been enabled!')
+end
+
+local function DisableInvisible()
+    if not InvisibleEnabled then return end
+    InvisibleEnabled = false
+
+    if InvisibleConnection then
+        InvisibleConnection:Disconnect()
+        InvisibleConnection = nil
+    end
+
+    Uninvisible()
+
+    notify('Invisible', 'Invisible has been disabled!')
+end
+
+addcmd('invisible', {'invis'}, function(args, speaker)
+    EnableInvisible()
+end)
+
+addcmd('uninvisible', {'uninvis'}, function(args, speaker)
+    DisableInvisible()
+end)
+
+addcmd('sellitem', {'sellitem'}, function(args, speaker)
+    local args = {
+        "EndDialogue",
+        {
+            Option = "Option2",
+            Dialogue = "Dialogue5",
+            NPC = "Merchant"
+        }
+    }
+    game:GetService("Players").LocalPlayer.Character:WaitForChild("RemoteEvent"):FireServer(unpack(args))
+end)
+
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local ItemFarmEnabled = false
+local ItemFarmConnection = nil
+local UzuKeeIsRetardedAndDoesntKnowHowToMakeAnAntiCheatOnTheServerSideAlsoVexStfuIKnowTheCodeIsBadYouDontNeedToTellMe = "  ___XP DE KEY"
+
+getgenv().SpawnedItems = {}
+
+local oldNc
+oldNc = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local Method = getnamecallmethod()
+    local Args = {...}
+    if not checkcaller() and rawequal(self.Name, "Returner") and rawequal(Args[1], "idklolbrah2de") then
+        return UzuKeeIsRetardedAndDoesntKnowHowToMakeAnAntiCheatOnTheServerSideAlsoVexStfuIKnowTheCodeIsBadYouDontNeedToTellMe
+    end
+    return oldNc(self, ...)
+end))
+
+local oldMagnitude
+oldMagnitude = hookmetamethod(Vector3.new(), "__index", newcclosure(function(self, index)
+    local CallingScript = tostring(getcallingscript())
+    if not checkcaller() and index == "magnitude" and CallingScript == "ItemSpawn" then
+        return 0
+    end
+    return oldMagnitude(self, index)
+end))
+
+local OldIndexItem
+OldIndexItem = hookmetamethod(Vector3.new(), "__index", newcclosure(function(self, Key)
+    if not checkcaller() and Key:lower() == "magnitude" and getcallingscript().Name == "ItemSpawn" then
+        return 0
+    end
+    return OldIndexItem(self, Key)
+end))
+
+game:GetService("CoreGui").DescendantAdded:Connect(function(child)
+    if child.Name == "ErrorPrompt" then
+        local GrabError = child:FindFirstChild("ErrorMessage", true)
+        repeat task.wait() until GrabError.Text ~= "Label"
+        local Reason = GrabError.Text
+        if Reason:match("kick") or Reason:match("You") or Reason:match("conn") or Reason:match("rejoin") then
+            game:GetService("TeleportService"):Teleport(2809202155, Player)
+        end
+    end
+end)
+
+local Has2x = MarketplaceService:UserOwnsGamePassAsync(Player.UserId, 14597778)
+
+local function GetCharacter(Part)
+    if Player.Character then
+        if not Part then
+            return Player.Character
+        elseif typeof(Part) == "string" then
+            return Player.Character:FindFirstChild(Part) or nil
+        end
+    end
+    return nil
+end
+
+local function TeleportTo(Position)
+    local HumanoidRootPart = GetCharacter("HumanoidRootPart")
+    if HumanoidRootPart then
+        local PositionType = typeof(Position)
+        if PositionType == "CFrame" then
+            HumanoidRootPart.CFrame = Position
+        end
+    end
+end
+
+local function ToggleNoclip(Value)
+    local Character = GetCharacter()
+    if Character then
+        for _, Child in pairs(Character:GetDescendants()) do
+            if Child:IsA("BasePart") and Child.CanCollide == not Value then
+                Child.CanCollide = Value
+            end
+        end
+    end
+end
+
+local function HasMaxItem(Name)
+    local maxItems = Has2x and 6 or 3
+    local count = 0
+    for _, item in ipairs(Player.Backpack:GetChildren()) do
+        if item.Name == Name then
+            count = count + 1
+        end
+    end
+    local character = Player.Character
+    if character then
+        for _, item in ipairs(character:GetChildren()) do
+            if item.Name == Name then
+                count = count + 1
+            end
+        end
+    end
+    return count >= maxItems
+end
+
+local function EnableItemFarm()
+    if ItemFarmEnabled then return end
+    ItemFarmEnabled = true
+
+    local ItemSpawnFolder = Workspace:WaitForChild("Item_Spawns"):WaitForChild("Items")
+    
+    local function processItem(model)
+        if not model:IsA("Model") then return end
+        local proximityPrompt = model:FindFirstChildOfClass("ProximityPrompt")
+        if proximityPrompt and proximityPrompt.ObjectText and proximityPrompt.MaxActivationDistance ~= 0 then
+            local itemName = proximityPrompt.ObjectText
+            local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+            if primaryPart then
+                table.insert(getgenv().SpawnedItems, {
+                    Name = itemName,
+                    ProximityPrompt = proximityPrompt,
+                    Position = primaryPart.Position
+                })
+            end
+        end
+    end
+
+    for _, model in pairs(ItemSpawnFolder:GetChildren()) do
+        processItem(model)
+    end
+
+    ItemFarmConnection = ItemSpawnFolder.ChildAdded:Connect(function(model)
+        if ItemFarmEnabled then
+            task.wait(0.1)
+            processItem(model)
+        end
+    end)
+
+    task.spawn(function()
+        while ItemFarmEnabled do
+            if #getgenv().SpawnedItems == 0 then
+                TeleportTo(CFrame.new(978, -42, -49))
+                task.wait(1)
+            else
+                for Index, ItemInfo in pairs(getgenv().SpawnedItems) do
+                    local HumanoidRootPart = GetCharacter("HumanoidRootPart")
+                    if HumanoidRootPart then
+                        local Name = ItemInfo.Name
+                        local HasMax = HasMaxItem(Name)
+                        if not HasMax then
+                            local ProximityPrompt = ItemInfo.ProximityPrompt
+                            local Position = ItemInfo.Position
+                            table.remove(getgenv().SpawnedItems, table.find(getgenv().SpawnedItems, ItemInfo))
+                            local BodyVelocity = Instance.new("BodyVelocity")
+                            BodyVelocity.Parent = HumanoidRootPart
+                            BodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                            ToggleNoclip(true)
+                            TeleportTo(CFrame.new(Position.X, Position.Y + 25, Position.Z))
+                            task.wait(0.5)
+                            if ProximityPrompt and ProximityPrompt.Parent and ProximityPrompt.MaxActivationDistance ~= 0 then
+                                fireproximityprompt(ProximityPrompt)
+                            end
+                            task.wait(0.5)
+                            BodyVelocity:Destroy()
+                            TeleportTo(CFrame.new(978, -42, -49))
+                            ToggleNoclip(false)
+                        else
+                            table.remove(getgenv().SpawnedItems, table.find(getgenv().SpawnedItems, ItemInfo))
+                        end
+                    end
+                end
+                task.wait(3)
+            end
+        end
+    end)
+
+    Player.CharacterAdded:Connect(function()
+        if not ItemFarmEnabled then return end
+        task.wait(0.5)
+        ToggleNoclip(true)
+    end)
+
+    notify('ItemFarm', 'ItemFarm has been enabled!')
+end
+
+local function DisableItemFarm()
+    if not ItemFarmEnabled then return end
+    ItemFarmEnabled = false
+
+    if ItemFarmConnection then
+        ItemFarmConnection:Disconnect()
+        ItemFarmConnection = nil
+    end
+
+    getgenv().SpawnedItems = {}
+    ToggleNoclip(false)
+    TeleportTo(CFrame.new(978, -42, -49))
+
+    notify('ItemFarm', 'ItemFarm has been disabled!')
+end
+
+addcmd('itemfarm', {'itemfarm'}, function(args, speaker)
+    EnableItemFarm()
+end)
+
+addcmd('unitemfarm', {'unitemfarm'}, function(args, speaker)
+    DisableItemFarm()
+end)
+
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local AutoSell = false
+local AutoSellConnection = nil
+local UzuKeeIsRetardedAndDoesntKnowHowToMakeAnAntiCheatOnTheServerSideAlsoVexStfuIKnowTheCodeIsBadYouDontNeedToTellMe = "  ___XP DE KEY"
+
+local SellItems = {
+    ["Gold Coin"] = true,
+    ["Rokakaka"] = true,
+    ["Pure Rokakaka"] = true,
+    ["Mysterious Arrow"] = true,
+    ["Diamond"] = true,
+    ["Ancient Scroll"] = true,
+    ["Caesar's Headband"] = true,
+    ["Stone Mask"] = true,
+    ["Rib Cage of The Saint's Corpse"] = true,
+    ["Quinton's Glove"] = true,
+    ["Zeppeli's Hat"] = true,
+    ["Lucky Arrow"] = false,
+    ["Clackers"] = true,
+    ["Steel Ball"] = true,
+    ["Dio's Diary"] = true
+}
+
+local MaxItemAmounts = {
+    ["Gold Coin"] = 45,
+    ["Rokakaka"] = 25,
+    ["Pure Rokakaka"] = 10,
+    ["Mysterious Arrow"] = 25,
+    ["Diamond"] = 30,
+    ["Ancient Scroll"] = 10,
+    ["Caesar's Headband"] = 10,
+    ["Stone Mask"] = 10,
+    ["Rib Cage of The Saint's Corpse"] = 20,
+    ["Quinton's Glove"] = 10,
+    ["Zeppeli's Hat"] = 10,
+    ["Lucky Arrow"] = 10,
+    ["Clackers"] = 10,
+    ["Steel Ball"] = 10,
+    ["Dio's Diary"] = 10
+}
+
+local oldNc
+oldNc = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local Method = getnamecallmethod()
+    local Args = {...}
+    if not checkcaller() and rawequal(self.Name, "Returner") and rawequal(Args[1], "idklolbrah2de") then
+        return UzuKeeIsRetardedAndDoesntKnowHowToMakeAnAntiCheatOnTheServerSideAlsoVexStfuIKnowTheCodeIsBadYouDontNeedToTellMe
+    end
+    return oldNc(self, ...)
+end))
+
+local Has2x = MarketplaceService:UserOwnsGamePassAsync(Player.UserId, 14597778)
+if Has2x then
+    for Index, Max in pairs(MaxItemAmounts) do
+        MaxItemAmounts[Index] = Max * 2
+    end
+end
+
+local function GetCharacter(Part)
+    if Player.Character then
+        if not Part then
+            return Player.Character
+        elseif typeof(Part) == "string" then
+            return Player.Character:FindFirstChild(Part) or nil
+        end
+    end
+    return nil
+end
+
+local function HasMaxItem(Item)
+    local Count = 0
+    for _, Tool in pairs(Player.Backpack:GetChildren()) do
+        if Tool.Name == Item then
+            Count = Count + 1
+        end
+    end
+    local character = GetCharacter()
+    if character then
+        for _, Tool in pairs(character:GetChildren()) do
+            if Tool.Name == Item then
+                Count = Count + 1
+            end
+        end
+    end
+    if MaxItemAmounts[Item] then
+        return Count >= MaxItemAmounts[Item]
+    else
+        return false
+    end
+end
+
+local function EnableItemSell()
+    if AutoSell then return end
+    AutoSell = true
+
+    AutoSellConnection = RunService.Heartbeat:Connect(function()
+        if not AutoSell then return end
+        local character = GetCharacter()
+        if not character then return end
+        local humanoid = GetCharacter("Humanoid")
+        local remoteEvent = GetCharacter("RemoteEvent")
+        if not humanoid or not remoteEvent then return end
+
+        for Item, Sell in pairs(SellItems) do
+            if Sell and Player.Backpack and Player.Backpack:FindFirstChild(Item) and not HasMaxItem(Item) then
+                humanoid:EquipTool(Player.Backpack:FindFirstChild(Item))
+                remoteEvent:FireServer("EndDialogue", {
+                    ["NPC"] = "Merchant",
+                    ["Dialogue"] = "Dialogue5",
+                    ["Option"] = "Option2"
+                })
+                task.wait(0.8)
+            end
+        end
+    end)
+
+    Player.CharacterAdded:Connect(function()
+        if not AutoSell then return end
+        task.wait(1)
+    end)
+
+    notify('ItemSell', 'ItemSell has been enabled!')
+end
+
+local function DisableItemSell()
+    if not AutoSell then return end
+    AutoSell = false
+
+    if AutoSellConnection then
+        AutoSellConnection:Disconnect()
+        AutoSellConnection = nil
+    end
+
+    notify('ItemSell', 'ItemSell has been disabled!')
+end
+
+addcmd('itemsell', {'itemsell'}, function(args, speaker)
+    EnableItemSell()
+end)
+
+addcmd('unitemsell', {'unitemsell'}, function(args, speaker)
+    DisableItemSell()
+end)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Player = Players.LocalPlayer
+local UzuKeeIsRetardedAndDoesntKnowHowToMakeAnAntiCheatOnTheServerSideAlsoVexStfuIKnowTheCodeIsBadYouDontNeedToTellMe = "  ___XP DE KEY"
+
+local LuckyBuyEnabled = false
+local LuckyBuyConnection = nil
+
+local oldNc
+oldNc = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local Method = getnamecallmethod()
+    local Args = {...}
+    if not checkcaller() and rawequal(self.Name, "Returner") and rawequal(Args[1], "idklolbrah2de") then
+        return UzuKeeIsRetardedAndDoesntKnowHowToMakeAnAntiCheatOnTheServerSideAlsoVexStfuIKnowTheCodeIsBadYouDontNeedToTellMe
+    end
+    return oldNc(self, ...)
+end))
+
+local function HasLuckyArrows()
+    local backpack = Player:FindFirstChild("Backpack")
+    local character = Player.Character
+    local count = 0
+    
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item.Name == "Lucky Arrow" then
+                count = count + 1
+            end
+        end
+    end
+    
+    if character then
+        for _, item in ipairs(character:GetChildren()) do
+            if item.Name == "Lucky Arrow" then
+                count = count + 1
+            end
+        end
+    end
+    
+    return count >= 9
+end
+
+local function EnableLuckyBuy()
+    if LuckyBuyEnabled then return end
+    LuckyBuyEnabled = true
+
+    LuckyBuyConnection = RunService.Heartbeat:Connect(function()
+        if not LuckyBuyEnabled then return end
+        local character = Player.Character
+        if not character then return end
+        local remoteEvent = character:FindFirstChild("RemoteEvent")
+        local money = Player:FindFirstChild("PlayerStats") and Player.PlayerStats:FindFirstChild("Money")
+        if not remoteEvent or not money then return end
+
+        if HasLuckyArrows() then
+            LuckyBuyEnabled = false
+            if LuckyBuyConnection then
+                LuckyBuyConnection:Disconnect()
+                LuckyBuyConnection = nil
+            end
+            notify('LuckyBuy', 'LuckyBuy disabled: 9 Lucky Arrows reached!')
+            return
+        end
+
+        if money.Value >= 50000 then
+            remoteEvent:FireServer("PurchaseShopItem", {["ItemName"] = "1x Lucky Arrow"})
+            task.wait(0.1)
+        end
+    end)
+
+    Player.CharacterAdded:Connect(function()
+        if not LuckyBuyEnabled then return end
+        task.wait(0.5)
+    end)
+
+    notify('LuckyBuy', 'LuckyBuy has been enabled!')
+end
+
+local function DisableLuckyBuy()
+    if not LuckyBuyEnabled then return end
+    LuckyBuyEnabled = false
+
+    if LuckyBuyConnection then
+        LuckyBuyConnection:Disconnect()
+        LuckyBuyConnection = nil
+    end
+
+    notify('LuckyBuy', 'LuckyBuy has been disabled!')
+end
+
+addcmd('luckybuy', {'luckybuy'}, function(args, speaker)
+    EnableLuckyBuy()
+end)
+
+addcmd('unluckybuy', {'unluckybuy'}, function(args, speaker)
+    DisableLuckyBuy()
 end)
 
 addcmd('keepiy', {}, function(args, speaker)
