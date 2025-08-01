@@ -4828,7 +4828,12 @@ CMDs[#CMDs + 1] = {NAME = 'autopb', DESC = 'Авто перфект блок'}
 CMDs[#CMDs + 1] = {NAME = 'unautopb', DESC = 'Выключает авто перфект блок'}
 CMDs[#CMDs + 1] = {NAME = 'Jesus', DESC = 'Вызывает диалог с богом'}
 CMDs[#CMDs + 1] = {NAME = 'standcontrol / sc', DESC = 'Контроль стендом (пилот)'}
-CMDs[#CMDs + 1] = {NAME = 'unstandcontrol / unsc', DESC = 'Убирает контроль стендом'}
+CMDs[#CMDs + 1] = {NAME = 'itemesp', DESC = 'Включает Esp для предметов'}
+CMDs[#CMDs + 1] = {NAME = 'unitemesp', DESC = 'Убирает Esp для предметов'}
+CMDs[#CMDs + 1] = {NAME = 'luckynotify', DESC = 'Нотификатор для спавна Lucky Arrow / Lucky Stone Mask'}
+CMDs[#CMDs + 1] = {NAME = 'unluckynotify', DESC = 'Выключает/удаляет нотификатор'}
+CMDs[#CMDs + 1] = {NAME = 'itemsnotify', DESC = 'Нотификатор для спавна предметов'}
+CMDs[#CMDs + 1] = {NAME = 'unitemsnotify', DESC = 'Выключает/удаляет нотификатор'}
 wait()
 
 for i = 1, #CMDs do
@@ -6434,7 +6439,7 @@ local TeleportCheck = false
 Players.LocalPlayer.OnTeleport:Connect(function(State)
 	if KeepInfYield and (not TeleportCheck) and queueteleport then
 		TeleportCheck = true
-		queueteleport("loadstring(game:HttpGet("https://raw.githubusercontent.com/Vodi4kasy1/MoonLightYBA/refs/heads/main/InfMoon"))()")
+		queueteleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()")
 	end
 end)
 
@@ -6643,7 +6648,7 @@ local Attacks = {
     ["Skull Crusher2"] = {"Block", 0},
     ["Enraged Fury"] = {"Parry", 0},
     ["Air_Swoosh"] = {"Block", 0},
-    ["Whitesnake Finisher"] = {"Parry", 0.4},
+    ["Whitesnake Finisher"] = {"Parry", 0.40},
     ["C-Moon Finisher"] = {"Parry", 0.35},
     ["Surface Inversion Punch Voiceline"] = {"Parry", 0.35},
     ["Uppercut to The Moon"] = {"Parry", 0.35},
@@ -6936,6 +6941,455 @@ end)
 
 addcmd('unstandcontrol', {'unsc'}, function(args, speaker)
     DisableStandControl()
+end)
+
+local ItemESPEnabled = false
+local ItemESPConnections = {}
+local ItemBillboards = {}
+
+local function createBillboardGui(model, promptText)
+    if model:FindFirstChild("ItemESP") then return end
+
+    local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    if not primaryPart then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ItemESP"
+    billboard.Adornee = primaryPart
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = model
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = promptText
+    textLabel.TextColor3 = Color3.new(1, 1, 1)
+    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    textLabel.TextStrokeTransparency = 0
+    textLabel.TextSize = 20
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.Parent = billboard
+
+    ItemBillboards[model] = billboard
+end
+
+local function removeBillboardGui(model)
+    if ItemBillboards[model] then
+        ItemBillboards[model]:Destroy()
+        ItemBillboards[model] = nil
+    end
+end
+
+local function processModel(model)
+    if not model:IsA("Model") then return end
+
+    local proximityPrompt = model:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if proximityPrompt and proximityPrompt.ObjectText then
+        createBillboardGui(model, proximityPrompt.ObjectText)
+    end
+end
+
+local function EnableItemESP()
+    if ItemESPEnabled then return end
+    ItemESPEnabled = true
+
+    local itemsFolder = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items")
+    
+    for _, model in pairs(itemsFolder:GetChildren()) do
+        processModel(model)
+    end
+
+    ItemESPConnections["ChildAdded"] = itemsFolder.ChildAdded:Connect(function(model)
+        if ItemESPEnabled then
+            task.wait(0.1)
+            processModel(model)
+        end
+    end)
+
+    ItemESPConnections["ChildRemoved"] = itemsFolder.ChildRemoved:Connect(function(model)
+        if ItemESPEnabled then
+            removeBillboardGui(model)
+        end
+    end)
+
+    notify('ItemESP', 'ItemESP has been enabled!')
+end
+
+local function DisableItemESP()
+    if not ItemESPEnabled then return end
+    ItemESPEnabled = false
+
+    for _, connection in pairs(ItemESPConnections) do
+        connection:Disconnect()
+    end
+    ItemESPConnections = {}
+
+    local itemsFolder = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items")
+    for _, model in pairs(itemsFolder:GetChildren()) do
+        removeBillboardGui(model)
+    end
+
+    notify('ItemESP', 'ItemESP has been disabled!')
+end
+
+addcmd('itemesp', {'itemesp'}, function(args, speaker)
+    EnableItemESP()
+end)
+
+addcmd('unitemesp', {'unitemesp'}, function(args, speaker)
+    DisableItemESP()
+end)
+
+local LuckyNotifyEnabled = false
+local LuckyNotifyConnection = nil
+local ActiveNotifications = {}
+local NotificationSpacing = 110
+local TweenService = game:GetService("TweenService")
+
+local function createNotification(itemName, model, index)
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "LuckyNotifyGui"
+    ScreenGui.Parent = PlayerGui
+
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0, 250, 0, 100)
+    Frame.Position = UDim2.new(0, 10, 1, -10 - (index * NotificationSpacing))
+    Frame.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+    Frame.BackgroundTransparency = 0.2
+    Frame.BorderSizePixel = 0
+    Frame.Parent = ScreenGui
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 12)
+    UICorner.Parent = Frame
+
+    local TextLabel = Instance.new("TextLabel")
+    TextLabel.Size = UDim2.new(0.9, 0, 0.4, 0)
+    TextLabel.Position = UDim2.new(0.05, 0, 0.1, 0)
+    TextLabel.BackgroundTransparency = 1
+    TextLabel.Text = "Item " .. itemName .. " spawned!"
+    TextLabel.TextColor3 = Color3.new(1, 1, 1)
+    TextLabel.TextSize = 16
+    TextLabel.Font = Enum.Font.SourceSansBold
+    TextLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    TextLabel.TextStrokeTransparency = 0
+    TextLabel.Parent = Frame
+
+    local TeleportButton = Instance.new("TextButton")
+    TeleportButton.Size = UDim2.new(0.35, 0, 0.3, 0)
+    TeleportButton.Position = UDim2.new(0.1, 0, 0.55, 0)
+    TeleportButton.BackgroundColor3 = Color3.new(0, 0.6, 0)
+    TeleportButton.Text = "Teleport"
+    TeleportButton.TextColor3 = Color3.new(1, 1, 1)
+    TeleportButton.TextSize = 14
+    TeleportButton.Font = Enum.Font.SourceSansBold
+    TeleportButton.Parent = Frame
+
+    local TeleportUICorner = Instance.new("UICorner")
+    TeleportUICorner.CornerRadius = UDim.new(0, 8)
+    TeleportUICorner.Parent = TeleportButton
+
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Size = UDim2.new(0.35, 0, 0.3, 0)
+    CloseButton.Position = UDim2.new(0.55, 0, 0.55, 0)
+    CloseButton.BackgroundColor3 = Color3.new(0.6, 0, 0)
+    CloseButton.Text = "Close"
+    CloseButton.TextColor3 = Color3.new(1, 1, 1)
+    CloseButton.TextSize = 14
+    CloseButton.Font = Enum.Font.SourceSansBold
+    CloseButton.Parent = Frame
+
+    local CloseUICorner = Instance.new("UICorner")
+    CloseUICorner.CornerRadius = UDim.new(0, 8)
+    CloseUICorner.Parent = CloseButton
+
+    local function updatePositions()
+        for i, notif in ipairs(ActiveNotifications) do
+            if notif.Frame then
+                local targetPos = UDim2.new(0, 10, 1, -10 - (i * NotificationSpacing))
+                TweenService:Create(notif.Frame, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Position = targetPos}):Play()
+                notif.Index = i
+            end
+        end
+    end
+
+    local function removeNotification()
+        for i, notif in ipairs(ActiveNotifications) do
+            if notif.Gui == ScreenGui then
+                table.remove(ActiveNotifications, i)
+                break
+            end
+        end
+        updatePositions()
+        TweenService:Create(Frame, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {BackgroundTransparency = 1, Position = UDim2.new(0, 10, Frame.Position.Y.Scale, Frame.Position.Y.Offset)}):Play()
+        task.wait(0.3)
+        ScreenGui:Destroy()
+    end
+
+    TeleportButton.MouseButton1Click:Connect(function()
+        local Character = LocalPlayer.Character
+        if Character and Character:FindFirstChild("HumanoidRootPart") then
+            local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+            if primaryPart then
+                Character.HumanoidRootPart.CFrame = primaryPart.CFrame + Vector3.new(0, 3, 0)
+            end
+        end
+        removeNotification()
+    end)
+
+    CloseButton.MouseButton1Click:Connect(function()
+        removeNotification()
+    end)
+
+    table.insert(ActiveNotifications, {Gui = ScreenGui, Frame = Frame, Index = index})
+    Frame.Position = UDim2.new(0, -250, 1, -10 - (index * NotificationSpacing))
+    TweenService:Create(Frame, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Position = UDim2.new(0, 10, 1, -10 - (index * NotificationSpacing))}):Play()
+
+    return ScreenGui
+end
+
+local function checkItem(model)
+    if not model:IsA("Model") then return end
+
+    local proximityPrompt = model:FindFirstChildOfClass("ProximityPrompt")
+    if proximityPrompt and proximityPrompt.ObjectText then
+        local itemName = proximityPrompt.ObjectText
+        if itemName == "Lucky Arrow" or itemName == "Lucky Stone Mask" then
+            local index = #ActiveNotifications
+            createNotification(itemName, model, index)
+        end
+    end
+end
+
+local function EnableLuckyNotify()
+    if LuckyNotifyEnabled then return end
+    LuckyNotifyEnabled = true
+
+    local itemsFolder = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items")
+
+    for _, model in pairs(itemsFolder:GetChildren()) do
+        checkItem(model)
+    end
+
+    LuckyNotifyConnection = itemsFolder.ChildAdded:Connect(function(model)
+        if LuckyNotifyEnabled then
+            task.wait(0.1)
+            checkItem(model)
+        end
+    end)
+
+    notify('LuckyNotify', 'LuckyNotify has been enabled!')
+end
+
+local function DisableLuckyNotify()
+    if not LuckyNotifyEnabled then return end
+    LuckyNotifyEnabled = false
+
+    if LuckyNotifyConnection then
+        LuckyNotifyConnection:Disconnect()
+        LuckyNotifyConnection = nil
+    end
+
+    for _, notif in ipairs(ActiveNotifications) do
+        if notif.Gui then
+            TweenService:Create(notif.Frame, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {BackgroundTransparency = 1, Position = UDim2.new(0, 10, notif.Frame.Position.Y.Scale, notif.Frame.Position.Y.Offset)}):Play()
+            task.spawn(function()
+                task.wait(0.3)
+                notif.Gui:Destroy()
+            end)
+        end
+    end
+    ActiveNotifications = {}
+
+    notify('LuckyNotify', 'LuckyNotify has been disabled!')
+end
+
+addcmd('luckynotify', {'luckynotify'}, function(args, speaker)
+    EnableLuckyNotify()
+end)
+
+addcmd('unluckynotify', {'unluckynotify'}, function(args, speaker)
+    DisableLuckyNotify()
+end)
+
+local ItemsNotifyEnabled = false
+local ItemsNotifyConnection = nil
+local ActiveNotifications = {}
+local NotificationSpacing = 110
+local TweenService = game:GetService("TweenService")
+
+local function createNotification(itemName, model, index)
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "ItemsNotifyGui"
+    ScreenGui.Parent = PlayerGui
+
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(0, 250, 0, 100)
+    Frame.Position = UDim2.new(1, -260, 1, -10 - (index * NotificationSpacing))
+    Frame.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+    Frame.BackgroundTransparency = 0.2
+    Frame.BorderSizePixel = 0
+    Frame.Parent = ScreenGui
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 12)
+    UICorner.Parent = Frame
+
+    local TextLabel = Instance.new("TextLabel")
+    TextLabel.Size = UDim2.new(0.9, 0, 0.4, 0)
+    TextLabel.Position = UDim2.new(0.05, 0, 0.1, 0)
+    TextLabel.BackgroundTransparency = 1
+    TextLabel.Text = "Item " .. itemName .. " spawned!"
+    TextLabel.TextColor3 = Color3.new(1, 1, 1)
+    TextLabel.TextSize = 16
+    TextLabel.Font = Enum.Font.SourceSansBold
+    TextLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    TextLabel.TextStrokeTransparency = 0
+    TextLabel.Parent = Frame
+
+    local TeleportButton = Instance.new("TextButton")
+    TeleportButton.Size = UDim2.new(0.35, 0, 0.3, 0)
+    TeleportButton.Position = UDim2.new(0.1, 0, 0.55, 0)
+    TeleportButton.BackgroundColor3 = Color3.new(0, 0.6, 0)
+    TeleportButton.Text = "Teleport"
+    TeleportButton.TextColor3 = Color3.new(1, 1, 1)
+    TeleportButton.TextSize = 14
+    TeleportButton.Font = Enum.Font.SourceSansBold
+    TeleportButton.Parent = Frame
+
+    local TeleportUICorner = Instance.new("UICorner")
+    TeleportUICorner.CornerRadius = UDim.new(0, 8)
+    TeleportUICorner.Parent = TeleportButton
+
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Size = UDim2.new(0.35, 0, 0.3, 0)
+    CloseButton.Position = UDim2.new(0.55, 0, 0.55, 0)
+    CloseButton.BackgroundColor3 = Color3.new(0.6, 0, 0)
+    CloseButton.Text = "Close"
+    CloseButton.TextColor3 = Color3.new(1, 1, 1)
+    CloseButton.TextSize = 14
+    CloseButton.Font = Enum.Font.SourceSansBold
+    CloseButton.Parent = Frame
+
+    local CloseUICorner = Instance.new("UICorner")
+    CloseUICorner.CornerRadius = UDim.new(0, 8)
+    CloseUICorner.Parent = CloseButton
+
+    local function updatePositions()
+        for i, notif in ipairs(ActiveNotifications) do
+            if notif.Frame then
+                local targetPos = UDim2.new(1, -260, 1, -10 - (i * NotificationSpacing))
+                TweenService:Create(notif.Frame, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Position = targetPos}):Play()
+                notif.Index = i
+            end
+        end
+    end
+
+    local function removeNotification()
+        for i, notif in ipairs(ActiveNotifications) do
+            if notif.Gui == ScreenGui then
+                table.remove(ActiveNotifications, i)
+                break
+            end
+        end
+        updatePositions()
+        TweenService:Create(Frame, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {BackgroundTransparency = 1, Position = UDim2.new(1, -260, Frame.Position.Y.Scale, Frame.Position.Y.Offset)}):Play()
+        task.wait(0.3)
+        ScreenGui:Destroy()
+    end
+
+    TeleportButton.MouseButton1Click:Connect(function()
+        local Character = LocalPlayer.Character
+        if Character and Character:FindFirstChild("HumanoidRootPart") then
+            local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+            if primaryPart then
+                Character.HumanoidRootPart.CFrame = primaryPart.CFrame + Vector3.new(0, 3, 0)
+            end
+        end
+        removeNotification()
+    end)
+
+    CloseButton.MouseButton1Click:Connect(function()
+        removeNotification()
+    end)
+
+    table.insert(ActiveNotifications, {Gui = ScreenGui, Frame = Frame, Index = index})
+    Frame.Position = UDim2.new(1, -10, 1, -10 - (index * NotificationSpacing))
+    TweenService:Create(Frame, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Position = UDim2.new(1, -260, 1, -10 - (index * NotificationSpacing))}):Play()
+
+    return ScreenGui
+end
+
+local function checkItem(model)
+    if not model:IsA("Model") then return end
+
+    local proximityPrompt = model:FindFirstChildOfClass("ProximityPrompt")
+    if proximityPrompt and proximityPrompt.ObjectText then
+        local itemName = proximityPrompt.ObjectText
+        local index = #ActiveNotifications
+        createNotification(itemName, model, index)
+    end
+end
+
+local function EnableItemsNotify()
+    if ItemsNotifyEnabled then return end
+    ItemsNotifyEnabled = true
+
+    local itemsFolder = game:GetService("Workspace"):WaitForChild("Item_Spawns"):WaitForChild("Items")
+
+    for _, model in pairs(itemsFolder:GetChildren()) do
+        checkItem(model)
+    end
+
+    ItemsNotifyConnection = itemsFolder.ChildAdded:Connect(function(model)
+        if ItemsNotifyEnabled then
+            task.wait(0.1)
+            checkItem(model)
+        end
+    end)
+
+    notify('ItemsNotify', 'ItemsNotify has been enabled!')
+end
+
+local function DisableItemsNotify()
+    if not ItemsNotifyEnabled then return end
+    ItemsNotifyEnabled = false
+
+    if ItemsNotifyConnection then
+        ItemsNotifyConnection:Disconnect()
+        ItemsNotifyConnection = nil
+    end
+
+    for _, notif in ipairs(ActiveNotifications) do
+        if notif.Gui then
+            TweenService:Create(notif.Frame, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {BackgroundTransparency = 1, Position = UDim2.new(1, -260, notif.Frame.Position.Y.Scale, notif.Frame.Position.Y.Offset)}):Play()
+            task.spawn(function()
+                task.wait(0.3)
+                notif.Gui:Destroy()
+            end)
+        end
+    end
+    ActiveNotifications = {}
+
+    notify('ItemsNotify', 'ItemsNotify has been disabled!')
+end
+
+addcmd('itemsnotify', {'itemsnotify'}, function(args, speaker)
+    EnableItemsNotify()
+end)
+
+addcmd('unitemsnotify', {'unitemsnotify'}, function(args, speaker)
+    DisableItemsNotify()
 end)
 
 addcmd('keepiy', {}, function(args, speaker)
@@ -13504,4 +13958,4 @@ task.spawn(function()
 end)
 
             --\\ MoonLight //--
-			--3
+			--2
