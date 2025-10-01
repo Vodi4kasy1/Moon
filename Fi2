@@ -1,0 +1,496 @@
+local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Just3itx/3itx-UI-LIB/refs/heads/main/Lib"))()
+local FlagsManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/Just3itx/3itx-UI-LIB/refs/heads/main/ConfigManager"))()
+
+local main = lib:Load({
+    Title = 'Fisch',
+    ToggleButton = "",
+    BindGui = Enum.KeyCode.RightControl,
+})
+
+local Autos = main:AddTab("Autos")
+main:SelectTab()
+
+local CastingSection = Autos:AddSection({Title = "Casting", Description = "Auto casting options", Defualt = false , Locked = false})
+local ReelingSection = Autos:AddSection({Title = "Reeling", Description = "Auto reeling options", Defualt = false , Locked = false})
+local ShakeSection = Autos:AddSection({Title = "Shake", Description = "Auto shake options", Defualt = false , Locked = false})
+local MiscSection = Autos:AddSection({Title = "Misc", Description = "Other auto features", Defualt = false , Locked = false})
+
+local Other = main:AddTab("Other")
+
+local OtherSection = Other:AddSection({Title = "Other", Description = "Other options", Defualt = false , Locked = false})
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Lighting = game:GetService("Lighting")
+local LocalPlayer = Players.LocalPlayer
+local CurrentTool = nil
+local Unloaded = false
+local toggles = {}
+local Remotes = {
+    ReelFinished = ReplicatedStorage.events:WaitForChild("reelfinished"),
+    SellAll = ReplicatedStorage.events:WaitForChild("SellAll"),
+    Afk = ReplicatedStorage.events:WaitForChild("afk"),
+}
+local Interface = {
+    Inventory = game:GetService("CoreGui"):WaitForChild("RobloxGui"):WaitForChild("Backpack"),
+}
+local State = {
+    LastToolReset = os.clock(),
+    ToolResetCooldown = 5,
+}
+local NO_HOOKING = not (hookmetamethod)
+
+local originalLighting = {
+    Brightness = Lighting.Brightness,
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    ClockTime = Lighting.ClockTime,
+    GeographicLatitude = Lighting.GeographicLatitude,
+    TimeOfDay = Lighting.TimeOfDay
+}
+
+local function GetToggleValue(name)
+    return toggles[name] or false
+end
+
+local function EnsureInstance(instance)
+    return instance and instance:IsDescendantOf(game)
+end
+
+local function CountInstances(Parent, Name)
+    local Count = 0
+    for _, Instance in next, Parent:GetChildren() do
+        if Instance.Name == Name then
+            Count += 1
+        end
+    end
+    return Count
+end
+
+local function ResetTool()
+    if CurrentTool then
+        if State.LastToolReset + State.ToolResetCooldown < os.clock() then
+            State.LastToolReset = os.clock()
+            task.wait()
+            CurrentTool.Parent = LocalPlayer.Character
+        end
+    end
+end
+
+local function CharacterChildAdded(Child)
+    if Child:IsA("Tool") then
+        CurrentTool = Child
+    end
+end
+
+local function CharacterChildRemoved(Child)
+    if Child:IsA("Tool") then
+        CurrentTool = nil
+    end
+end
+
+local function CharacterAdded(Character)
+    for _, Child in next, Character:GetChildren() do
+        CharacterChildAdded(Child)
+    end
+    Character.ChildAdded:Connect(CharacterChildAdded)
+    Character.ChildRemoved:Connect(CharacterChildRemoved)
+end
+
+if LocalPlayer.Character then
+    CharacterAdded(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(CharacterAdded)
+
+if not NO_HOOKING then
+    local oldindex
+    oldindex = hookmetamethod(game, "__index", function(...)
+        if not Unloaded then
+            if not checkcaller() then
+                local Args = { ... }
+                local self, key = Args[1], Args[2]
+
+                if self == Interface.Inventory and key == "Visible" then
+                    local callingscript = getcallingscript()
+
+                    if callingscript and (not game:IsDescendantOf(callingscript, Interface.Inventory)) then
+                        return true
+                    end
+                end
+            end
+        end
+
+        return oldindex(...)
+    end)
+
+    local oldnamecall
+    oldnamecall = hookmetamethod(game, "__namecall", function(...)
+        if not Unloaded then
+            if not checkcaller() then
+                local Method = getnamecallmethod()
+
+                local Args = { ... }
+                local self = table.remove(Args, 1)
+
+                if Method == "FireServer" then
+                    if self == Remotes.ReelFinished then
+                        if GetToggleValue("PerfectReel") then
+                            Args[1] = 99
+                            Args[2] = true
+                        end
+                    elseif tostring(self) == "cast" then
+                        if GetToggleValue("PerfectCast") then
+                            Args[1] = 99
+                        end
+                    elseif self == Remotes.Afk and GetToggleValue("AntiAfk") then
+                        Args[1] = false
+                    end
+
+                    return oldnamecall(self, unpack(Args))
+                end
+            end
+        end
+
+        return oldnamecall(...)
+    end)
+end
+
+CastingSection:AddToggle("AutoCast", {
+    Title = "AutoCast",
+    Default = false,
+    Description = "Automatically casts for you",
+    Callback = function(value)
+        toggles.AutoCast = value
+    end,
+})
+
+CastingSection:AddToggle("PerfectCast", {
+    Title = "Always Perfect",
+    Default = false,
+    Description = "Makes your casts always perfect",
+    Callback = function(value)
+        toggles.PerfectCast = value
+    end,
+})
+
+ReelingSection:AddToggle("AutoReel", {
+    Title = "Auto-reel [Legit]",
+    Default = false,
+    Description = "Automatically plays the reel minigame",
+    Callback = function(value)
+        toggles.AutoReel = value
+        if value then
+            toggles.InstantReel = false
+        end
+    end,
+})
+
+ReelingSection:AddToggle("InstantReel", {
+    Title = "Insta-reel [Blatant]",
+    Default = false,
+    Description = "Automatically reels in fish instantly",
+    Callback = function(value)
+        toggles.InstantReel = value
+        if value then
+            toggles.AutoReel = false
+        end
+    end,
+})
+
+ReelingSection:AddToggle("PerfectReel", {
+    Title = "Always Perfect",
+    Default = false,
+    Description = "Reels in fish perfectly!",
+    Callback = function(value)
+        toggles.PerfectReel = value
+    end,
+})
+
+ShakeSection:AddToggle("AutoShake", {
+    Title = "AutoShake",
+    Default = false,
+    Description = "Automatically shakes the rod",
+    Callback = function(value)
+        toggles.AutoShake = value
+    end,
+})
+
+ShakeSection:AddToggle("CenterShake", {
+    Title = "CenterShake [Improves AutoShake]",
+    Default = false,
+    Description = "Centers the shake UI [Improves AutoShake]",
+    Callback = function(value)
+        toggles.CenterShake = value
+    end,
+})
+
+MiscSection:AddToggle("AutoSell", {
+    Title = "Auto-sell",
+    Default = false,
+    Description = "Automatically sells items.",
+    Callback = function(value)
+        toggles.AutoSell = value
+    end,
+})
+
+OtherSection:AddToggle("AntiAfk", {
+    Title = "Anti Afk",
+    Default = false,
+    Description = "Prevents AFK kick",
+    Callback = function(value)
+        toggles.AntiAfk = value
+    end,
+})
+
+OtherSection:AddToggle("WaterWalk", {
+    Title = "Water Walk",
+    Default = false,
+    Description = "Allows walking on water",
+    Callback = function(value)
+        toggles.WaterWalk = value
+        local success, zones = pcall(function()
+            return workspace:WaitForChild("zones"):WaitForChild("fishing")
+        end)
+        if success and zones then
+            for _, part in ipairs(zones:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = value
+                end
+            end
+        end
+    end,
+})
+
+local ShopUpdateCoroutine = coroutine.create(function()
+    while task.wait(1) do
+        if GetToggleValue("AutoSell") then
+            Remotes.SellAll:InvokeServer()
+        end
+    end
+end)
+
+local AntiAfkCoroutine = coroutine.create(function()
+    while task.wait(30) do
+        if GetToggleValue("AntiAfk") then
+            local args = {false}
+            Remotes.Afk:FireServer(unpack(args))
+        end
+    end
+end)
+
+local AutoClickCoroutine = coroutine.create(function()
+    local function MountShakeUI(ShakeUI)
+        local SafeZone = ShakeUI:WaitForChild("safezone", 5)
+
+        local function HandleButton(Button)
+            Button.Selectable = true 
+
+            if EnsureInstance(Button) then
+                GuiService.SelectedObject = Button
+            end
+        end
+
+        if not SafeZone then
+            warn("Unable to mount shake UI.")
+            return
+        end
+
+        if GetToggleValue("CenterShake") then
+            local Connect = SafeZone:WaitForChild("connect", 1)
+
+            if Connect then
+                Connect.Enabled = false 
+            end
+
+            SafeZone.Size = UDim2.fromOffset(0, 0)
+            SafeZone.Position = UDim2.fromScale(0.5, 0.5)
+            SafeZone.AnchorPoint = Vector2.new(0.5, 0.5)
+        end
+
+        if GetToggleValue("AutoShake") then
+            local Connection = SafeZone.ChildAdded:Connect(function(Child)
+                if not Child:IsA("ImageButton") then return end
+                
+                if replicatesignal then
+                    replicatesignal(Child.MouseButton1Click)
+                    task.delay(0.05, function() Child:Destroy() end) 
+                    return
+                end
+                
+                local Done = false
+
+                task.spawn(function()
+                    repeat
+                        RunService.Heartbeat:Wait()
+                        HandleButton(Child)
+                    until Done
+                end)
+
+                task.spawn(function()
+                    repeat
+                        RunService.Heartbeat:Wait()
+                    until (not Child) or (not Child:IsDescendantOf(SafeZone))
+                    Done = true
+                end)
+            end)
+
+            if replicatesignal then return end
+            
+            repeat
+                RunService.Heartbeat:Wait()
+                if GuiService.SelectedObject and GuiService.SelectedObject:IsDescendantOf(SafeZone) then
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                end
+                RunService.Heartbeat:Wait()
+            until not SafeZone:IsDescendantOf(LocalPlayer.PlayerGui)
+            Connection:Disconnect()
+            GuiService.SelectedObject = nil
+        end
+    end
+
+    LocalPlayer.PlayerGui.ChildAdded:Connect(function(Child)
+        if Child.Name == "shakeui" and Child:IsA("ScreenGui") then
+            MountShakeUI(Child)
+        end
+    end)
+end)
+
+local AutoReelCoroutine = coroutine.create(function()
+    while true do
+        RunService.RenderStepped:Wait()
+
+        local ReelUI = LocalPlayer.PlayerGui:FindFirstChild("reel")
+
+        if not ReelUI then
+            continue
+        end
+
+        if GetToggleValue("InstantReel") then
+            local Bar = ReelUI:FindFirstChild("bar")
+
+            if Bar then
+                local ReelScript = Bar:FindFirstChild("reel")
+                if ReelScript and ReelScript.Enabled == true then
+                    Remotes.ReelFinished:FireServer(100, GetToggleValue("PerfectReel"))
+                end
+            end
+        elseif GetToggleValue("AutoReel") then
+            local Bar = ReelUI:FindFirstChild("bar")
+
+            if not Bar then
+                continue
+            end
+
+            local PlayerBar = Bar:FindFirstChild("playerbar")
+            local TargetBar = Bar:FindFirstChild("fish")
+
+            while Bar and ReelUI:IsDescendantOf(LocalPlayer.PlayerGui) do
+                RunService.RenderStepped:Wait()
+                local UnfilteredTargetPosition = PlayerBar.Position:Lerp(TargetBar.Position, 0.7)
+                local TargetPosition = UDim2.fromScale(
+                    math.clamp(UnfilteredTargetPosition.X.Scale, 0.15, 0.85),
+                    UnfilteredTargetPosition.Y.Scale
+                )
+
+                PlayerBar.Position = TargetPosition
+            end
+        end
+    end
+end)
+
+local AutoCastCoroutine = coroutine.create(function()
+    local LastCastAttempt = 0
+
+    while task.wait(0.5) do
+        if GetToggleValue("AutoCast") then
+            pcall(function()
+                if not CurrentTool then
+                    return
+                end
+
+                local Values = CurrentTool:FindFirstChild("values")
+                if CurrentTool and Values then
+                    local Events = CurrentTool:FindFirstChild("events")
+
+                    if
+                        Values:FindFirstChild("bite")
+                        and Values.bite.Value == true
+                        and Values.casted.Value == true
+                    then
+                        if (not LocalPlayer.PlayerGui:FindFirstChild("reel")) and tick() - LastCastAttempt > 5 then
+                            ResetTool()
+                        end
+                    end
+
+                    if CountInstances(LocalPlayer.PlayerGui, "reel") > 1 then
+                        ResetTool()
+                        for _, Child in next, LocalPlayer.PlayerGui:GetChildren() do
+                            if Child.Name == "reel" then
+                                Child:Destroy()
+                            end
+                        end
+                    end
+
+                    if Values.casted.Value == false then
+                        LastCastAttempt = tick()
+
+                        local AnimationFolder = ReplicatedStorage:WaitForChild("resources")
+                            :WaitForChild("animations")
+
+                        local CastAnimation = LocalPlayer.Character
+                            :FindFirstChild("Humanoid")
+                            :LoadAnimation(AnimationFolder.fishing.throw)
+                        CastAnimation.Priority = Enum.AnimationPriority.Action3
+                        CastAnimation:Play()
+                        Events.cast:FireServer(100, 1)
+
+                        CastAnimation.Stopped:Once(function()
+                            CastAnimation:Destroy()
+
+                            local WaitingAnimation = LocalPlayer.Character
+                                :FindFirstChild("Humanoid")
+                                :LoadAnimation(AnimationFolder.fishing.waiting)
+                            WaitingAnimation.Priority = Enum.AnimationPriority.Action3
+                            WaitingAnimation:Play()
+
+                            local UnequippedLoop, CastConnection
+
+                            CastConnection = Values.casted.Changed:Once(function()
+                                WaitingAnimation:Stop()
+                                WaitingAnimation:Destroy()
+                                coroutine.close()
+                            end)
+
+                            UnequippedLoop = coroutine.create(function()
+                                repeat
+                                    task.wait()
+                                until not CurrentTool
+                                WaitingAnimation:Stop()
+                                WaitingAnimation:Destroy()
+                                CastConnection:Disconnect()
+                            end)
+
+                            coroutine.resume()
+                        end)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+coroutine.resume(ShopUpdateCoroutine)
+coroutine.resume(AntiAfkCoroutine)
+coroutine.resume(AutoClickCoroutine)
+coroutine.resume(AutoReelCoroutine)
+coroutine.resume(AutoCastCoroutine)
+
+local Config = main:AddTab("Config")
+FlagsManager:SetLibrary(lib)
+FlagsManager:SetIgnoreIndexes({})
+FlagsManager:SetFolder("FischAutos")
+FlagsManager:InitSaveSystem(Config)
