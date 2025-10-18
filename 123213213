@@ -1,0 +1,112 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local LocalPlayer = Players.LocalPlayer
+local CurrentTool = nil
+
+-- Auto Cast
+local function AutoCast()
+    while task.wait(1) do
+        if LocalPlayer.Character then
+            for _, tool in ipairs(LocalPlayer.Character:GetChildren()) do
+                if tool:IsA("Tool") then
+                    CurrentTool = tool
+                    local values = CurrentTool:FindFirstChild("values")
+                    local events = CurrentTool:FindFirstChild("events")
+                    
+                    if values and events and values.casted.Value == false then
+                        local args = {100, 1}
+                        events.castAsync:InvokeServer(unpack(args))
+                    end
+                    break
+                end
+            end
+        end
+    end
+end
+
+-- Auto Reel
+local function AutoReel()
+    while RunService.RenderStepped:Wait() do
+        local reelUI = LocalPlayer.PlayerGui:FindFirstChild("reel")
+        if reelUI then
+            local bar = reelUI:FindFirstChild("bar")
+            if bar then
+                local reelScript = bar:FindFirstChild("reel")
+                if reelScript and reelScript.Enabled then
+                    ReplicatedStorage.events.reelfinished:FireServer(100, true)
+                end
+            end
+        end
+    end
+end
+
+-- Auto Shake (оригинальная версия)
+local function AutoShake()
+    local function MountShakeUI(ShakeUI)
+        local SafeZone = ShakeUI:WaitForChild("safezone", 5)
+
+        local function HandleButton(Button)
+            Button.Selectable = true 
+            if Button:IsDescendantOf(game) then
+                GuiService.SelectedObject = Button
+            end
+        end
+
+        if not SafeZone then return end
+
+        -- Center shake
+        local Connect = SafeZone:WaitForChild("connect", 1)
+        if Connect then
+            Connect.Enabled = false 
+        end
+
+        SafeZone.Size = UDim2.fromOffset(0, 0)
+        SafeZone.Position = UDim2.fromScale(0.5, 0.5)
+        SafeZone.AnchorPoint = Vector2.new(0.5, 0.5)
+
+        local Connection = SafeZone.ChildAdded:Connect(function(Child)
+            if not Child:IsA("ImageButton") then return end
+            
+            local Done = false
+
+            task.spawn(function()
+                repeat
+                    RunService.Heartbeat:Wait()
+                    HandleButton(Child)
+                until Done
+            end)
+
+            task.spawn(function()
+                repeat
+                    RunService.Heartbeat:Wait()
+                until (not Child) or (not Child:IsDescendantOf(SafeZone))
+                Done = true
+            end)
+        end)
+
+        repeat
+            RunService.Heartbeat:Wait()
+            if GuiService.SelectedObject and GuiService.SelectedObject:IsDescendantOf(SafeZone) then
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+            end
+            RunService.Heartbeat:Wait()
+        until not SafeZone:IsDescendantOf(LocalPlayer.PlayerGui)
+        
+        Connection:Disconnect()
+        GuiService.SelectedObject = nil
+    end
+
+    LocalPlayer.PlayerGui.ChildAdded:Connect(function(Child)
+        if Child.Name == "shakeui" and Child:IsA("ScreenGui") then
+            MountShakeUI(Child)
+        end
+    end)
+end
+
+coroutine.wrap(AutoCast)()
+coroutine.wrap(AutoReel)()
+coroutine.wrap(AutoShake)()
