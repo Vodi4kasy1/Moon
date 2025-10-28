@@ -90,11 +90,23 @@ function Library.CreateLib(...)
             ["State"] = false;
             ["BottomState"] = false;
             ["Debounce"] = false;
+            ["Draggable"] = false;
+            ["DragConnections"] = {};
+            ["PositionMode"] = "Bottom";
         };
     });
     LibTable.UI.Parent = game.CoreGui
     LibTable.UI.Name = "MoonLightLib"
     LibTable.UI.Main.Visible = false
+    if UserInputService.TouchEnabled then
+        LibTable.UI.Main.Size = u2(0, 300, 0, 400)
+        LibTable.UI.Main.Position = u2(0.5, -150, 0.5, -200)
+        LibTable.UI.TabHolder.Size = u2(0, 35, 1, 0)
+    else
+        LibTable.UI.Main.Size = u2(0, 350, 0, 250)
+        LibTable.UI.Main.Position = u2(0.5, -175, 0.5, -125)
+        LibTable.UI.TabHolder.Size = u2(0, 45, 1, 0)
+    end
     LibTable.Toggle = function()
         LibTable.State = not LibTable.State
         LibTable.UI.Main.Visible = not LibTable.UI.Main.Visible
@@ -139,7 +151,8 @@ function Library.CreateLib(...)
              New_Ripple:Destroy()
         end))
     end
-    LibTable.InitDrag = function()
+    LibTable.SetupDrag = function()
+        if #LibTable.DragConnections > 0 then return end
         local dragging, dragInput, dragStart, startPos
 
         local function update(input)
@@ -147,7 +160,7 @@ function Library.CreateLib(...)
             TweenService:Create(LibTable.UI.Main, TweenInfo.new(0.1), {Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)}):Play()
         end
 
-        LibTable.UI.Main.InputBegan:Connect(function(input)
+        local con1 = LibTable.UI.Main.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 dragStart = input.Position
@@ -160,26 +173,44 @@ function Library.CreateLib(...)
                 end)
             end
         end)
+        table.insert(LibTable.DragConnections, con1)
 
-        LibTable.UI.Main.InputChanged:Connect(function(input)
+        local con2 = LibTable.UI.Main.InputChanged:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
                 dragInput = input
             end
         end)
+        table.insert(LibTable.DragConnections, con2)
 
-        UserInputService.InputChanged:Connect(function(input)
+        local con3 = UserInputService.InputChanged:Connect(function(input)
             if input == dragInput and dragging then
                 update(input)
             end
         end)
+        table.insert(LibTable.DragConnections, con3)
 
-        UserInputService.TouchMoved:Connect(function(Input, IsTyping)
+        local con4 = UserInputService.TouchMoved:Connect(function(Input, IsTyping)
             if IsTyping then return end
 
             if dragging then
                 update(Input)
             end
         end)
+        table.insert(LibTable.DragConnections, con4)
+    end
+    LibTable.DisableDrag = function()
+        for _, con in pairs(LibTable.DragConnections) do
+            con:Disconnect()
+        end
+        LibTable.DragConnections = {}
+    end
+    LibTable.SetPosition = function(mode)
+        if mode == "Top" then
+            Tween(LibTable.UI.Main, {Position = u2(0, 0, 0, 0)}, 0.5)
+        elseif mode == "Bottom" then
+            Tween(LibTable.UI.Main, {Position = u2(0, 0, 1, 0)}, 0.5)
+        end
+        LibTable.PositionMode = mode
     end
 
     UserInputService.InputBegan:Connect(function(Key, IsTyping)
@@ -205,7 +236,24 @@ function Library.CreateLib(...)
             }
         })
     end)
-    LibTable.InitDrag()
+    local closeTabBtn = Instance.new("TextButton")
+    closeTabBtn.Name = "CloseTabBtn"
+    closeTabBtn.Parent = LibTable.UI.TabHolder
+    closeTabBtn.BackgroundColor3 = Color3.fromRGB(44, 58, 66)
+    closeTabBtn.BorderSizePixel = 0
+    closeTabBtn.Position = u2(1, -30, 0, 5)
+    closeTabBtn.Size = u2(0, 25, 0, 25)
+    closeTabBtn.Font = Enum.Font.SourceSans
+    closeTabBtn.Text = "X"
+    closeTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeTabBtn.TextScaled = true
+    closeTabBtn.MouseButton1Click:Connect(function()
+        LibTable.ToggleBottom()
+    end)
+    if LibTable.Draggable then
+        LibTable.SetupDrag()
+    end
+    LibTable.SetPosition(LibTable.PositionMode)
 
     return setmetatable(LibTable, Library)
 end
@@ -454,17 +502,16 @@ function Library:Button(Name, Callback, Description)
                 true
             }
         })
-        if ButtonTable.Asset.UIStroke.Color == Color3.fromRGB(84, 111, 126) then
-            local Tween2 = Assist({
-                ["Name"] = "Tween";
-                ["Arguments"] = {
-                    ButtonTable.Asset.UIStroke,
-                    {Color = Color3.fromRGB(65, 86, 97)},
-                    0.1,
-                    false
-                }
-            })
-        end
+        task.wait(0.1)
+        local Tween2 = Assist({
+            ["Name"] = "Tween";
+            ["Arguments"] = {
+                ButtonTable.Asset.UIStroke,
+                {Color = Color3.fromRGB(65, 86, 97)},
+                0.1,
+                false
+            }
+        })
     end)
 
     ButtonTable.Asset.Info.MouseButton1Down:Connect(function(X, Y)
@@ -630,17 +677,16 @@ function Library:Toggle(Name, StartingState, Callback, Description, RunOnStart)
                 true
             }
         })
-        if ToggleTable.Asset.UIStroke.Color == Color3.fromRGB(84, 111, 126) then
-            local Tween2 = Assist({
-                ["Name"] = "Tween";
-                ["Arguments"] = {
-                    ToggleTable.Asset.UIStroke,
-                    {Color = Color3.fromRGB(65, 86, 97)},
-                    0.1,
-                    false
-                }
-            })
-        end
+        task.wait(0.1)
+        local Tween2 = Assist({
+            ["Name"] = "Tween";
+            ["Arguments"] = {
+                ToggleTable.Asset.UIStroke,
+                {Color = Color3.fromRGB(65, 86, 97)},
+                0.1,
+                false
+            }
+        })
         pcall(ToggleTable.Callback, ToggleTable.State)
     end)
     ToggleTable.Asset.Info.MouseButton1Down:Connect(function(X, Y)
@@ -995,7 +1041,7 @@ function Library:TextBox(Name, Callback, Description)
     return setmetatable(TextBoxTable, Library)
 end
 
-function Library:Keybind(Name, Starting_Key, Callback, Description, Blacklisted_Keys)
+function Library:Keybind(Name, Starting_Key, Callback, Description, Blacklisted_Keys, onKeyChange)
     local KeybindTable = Assist({
         ["Name"] = "MakeTable";
         ["Arguments"] = {
@@ -1007,6 +1053,7 @@ function Library:Keybind(Name, Starting_Key, Callback, Description, Blacklisted_
             ["Debounce"] = false;
             ["Class"] = "Keybind";
             ["Tweens"] = {};
+            ["onKeyChange"] = onKeyChange;
     
             ["Asset"] = Assist({["Name"] = "GetAsset", ["Arguments"] = {"Keybind"}}):Clone();
             ["Connections"] = {In_Change = false};
@@ -1088,6 +1135,9 @@ function Library:Keybind(Name, Starting_Key, Callback, Description, Blacklisted_
                     Continue = true
 
                     pcall(KeybindTable.Callback, KeybindTable.GetKeystringFromEnum(KeybindTable.Key))
+                    if KeybindTable.onKeyChange then
+                        KeybindTable.onKeyChange(KeybindTable.Key)
+                    end
                     KeybindTable.Connections.Change_Connection:Disconnect()
                 end
             end)
@@ -1202,7 +1252,7 @@ function Library:Slider(Name, Min, Max, Start, Callback, Precise, Description)
         end
     )
 
-    UserInputService.InputChanged:Connect(
+    local inputChangedCon = UserInputService.InputChanged:Connect(
     function(Input)
         if SliderTable.Dragging and Input.UserInputType == Enum.UserInputType.MouseMovement then
             local Bound = SliderTable.Asset.Slider.AbsoluteSize.X
@@ -1222,7 +1272,7 @@ function Library:Slider(Name, Min, Max, Start, Callback, Precise, Description)
     end
     )
 
-    UserInputService.TouchMoved:Connect(
+    local touchMovedCon = UserInputService.TouchMoved:Connect(
     function(Input)
         if SliderTable.Dragging then
             local Bound = SliderTable.Asset.Slider.AbsoluteSize.X
@@ -1241,6 +1291,7 @@ function Library:Slider(Name, Min, Max, Start, Callback, Precise, Description)
         end
     end
     )
+    SliderTable.Connections = {InputChanged = inputChangedCon, TouchMoved = touchMovedCon}
 
     SliderTable.Asset.Info.MouseButton1Down:Connect(function(X, Y)
         Assist({
