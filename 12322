@@ -174,7 +174,7 @@ local function get_equipped_towers()
     return #towers > 0 and towers or {"None"}
 end
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Sources/UI.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Vodi4kasy1/scripts/refs/heads/main/zzx"))()
 
 local Window = Library:Window({
     Title = "Suck",
