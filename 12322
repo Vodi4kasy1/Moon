@@ -260,7 +260,7 @@ local RecorderTab = Window:Tab({Title = "Recorder", Icon = "camera"}) do
 
             if writefile then 
                 local config_header = string.format([[
-local TDS = loadstring(game:HttpGet(""))()
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/Vodi4kasy1/Moon/refs/heads/main/12322"))()
 
 TDS:Loadout("%s", "%s", "%s", "%s", "%s")
 TDS:Mode("%s")
